@@ -22,6 +22,8 @@ class User extends Authenticatable
         'email',
         'password',
         'role',
+        'status',
+        'image',
     ];
 
     /**
@@ -41,5 +43,15 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        'status' => 'boolean',
     ];
+
+    public function getImageUrlAttribute()
+    {
+        if ($this->image) {
+            return asset($this->image);
+        }
+
+        return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&color=7F9CF5&background=EBF4FF';
+    }
 }
