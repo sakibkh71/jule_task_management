@@ -69,7 +69,7 @@
 
                             <!-- Delete Modal -->
                             <div class="modal fade" id="deleteModal{{ $task->id }}" tabindex="-1" aria-labelledby="deleteModalLabel{{ $task->id }}" aria-hidden="true">
-                                <div class="modal-container modal-dialog">
+                                <div class="modal-dialog">
                                     <div class="modal-content">
                                         <div class="modal-header">
                                             <h5 class="modal-title" id="deleteModalLabel{{ $task->id }}">Confirm Delete</h5>
