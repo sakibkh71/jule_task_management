@@ -2,118 +2,100 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Client;
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class TaskController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
     public function index(Request $request)
     {
-        $query = Auth::user()->tasks();
+        $query = Task::with(['technician', 'client', 'creator'])
+            ->when($request->filled('search'), function ($q) use ($request) {
+                $search = $request->search;
+                $q->where(function ($inner) use ($search) {
+                    $inner->where('job_number', 'like', "%{$search}%")
+                          ->orWhere('title', 'like', "%{$search}%")
+                          ->orWhereHas('technician', fn ($u) => $u->where('name', 'like', "%{$search}%"))
+                          ->orWhereHas('client', fn ($c) => $c->where('name', 'like', "%{$search}%"));
+                });
+            })
+            ->when($request->filled('job_type'), fn ($q) => $q->where('job_type', $request->job_type))
+            ->when($request->filled('job_status'), fn ($q) => $q->where('status', $request->job_status))
+            ->when($request->filled('technician_id'), fn ($q) => $q->where('technician_id', $request->technician_id));
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
+        $tasks       = $query->latest()->paginate(10)->withQueryString();
+        $technicians = User::orderBy('name')->get();
+        $clients     = Client::orderBy('name')->get();
 
-        $sort = $request->get('sort', 'due_date');
-        $direction = $request->get('direction', 'asc');
-
-        if (!in_array($sort, ['title', 'status', 'due_date'])) {
-            $sort = 'due_date';
-        }
-
-        if (!in_array($direction, ['asc', 'desc'])) {
-            $direction = 'asc';
-        }
-
-        $tasks = $query->orderBy($sort, $direction)->paginate(10)->withQueryString();
-
-        return view('tasks.index', compact('tasks'));
+        return view('tasks.index', compact('tasks', 'technicians', 'clients'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     *
-     * @return \Illuminate\Http\Response
-     */
     public function create()
     {
-        return view('tasks.create');
+        $technicians = User::orderBy('name')->get();
+        $clients     = Client::orderBy('name')->get();
+        return view('tasks.create', compact('technicians', 'clients'));
     }
 
-    /**
-     * Store a newly created resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @return \Illuminate\Http\Response
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'required|in:pending,in_progress,completed',
-            'due_date' => 'nullable|date',
+            'title'         => 'required|string|max:255',
+            'description'   => 'nullable|string',
+            'status'        => 'required|in:assigned,in_progress,confirmed,completed',
+            'job_type'      => 'required|in:project,service_work,on_call,assignment',
+            'due_date'      => 'nullable|date',
+            'start_time'    => 'nullable|date_format:Y-m-d\TH:i',
+            'end_time'      => 'nullable|date_format:Y-m-d\TH:i|after_or_equal:start_time',
+            'technician_id' => 'nullable|exists:users,id',
+            'client_id'     => 'nullable|exists:clients,id',
         ]);
 
-        Auth::user()->tasks()->create($validated);
+        $validated['created_by'] = Auth::id();
+        $validated['user_id']    = Auth::id();
 
-        return redirect()->route('tasks.index')->with('success', 'Task created successfully.');
+        Task::create($validated);
+
+        return redirect()->route('tasks.index')->with('success', 'Job created successfully.');
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     *
-     * @param  \App\Models\Task  $task
-     * @return \Illuminate\Http\Response
-     */
     public function edit(Task $task)
     {
         $this->authorize('view', $task);
-        return view('tasks.edit', compact('task'));
+        $technicians = User::orderBy('name')->get();
+        $clients     = Client::orderBy('name')->get();
+        return view('tasks.edit', compact('task', 'technicians', 'clients'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \App\Models\Task  $task
-     * @return \Illuminate\Http\Response
-     */
     public function update(Request $request, Task $task)
     {
         $this->authorize('update', $task);
 
         $validated = $request->validate([
-            'title' => 'required|string|max:255',
-            'description' => 'nullable|string',
-            'status' => 'required|in:pending,in_progress,completed',
-            'due_date' => 'nullable|date',
+            'title'         => 'required|string|max:255',
+            'description'   => 'nullable|string',
+            'status'        => 'required|in:assigned,in_progress,confirmed,completed',
+            'job_type'      => 'required|in:project,service_work,on_call,assignment',
+            'due_date'      => 'nullable|date',
+            'start_time'    => 'nullable|date_format:Y-m-d\TH:i',
+            'end_time'      => 'nullable|date_format:Y-m-d\TH:i|after_or_equal:start_time',
+            'technician_id' => 'nullable|exists:users,id',
+            'client_id'     => 'nullable|exists:clients,id',
         ]);
 
         $task->update($validated);
 
-        return redirect()->route('tasks.index')->with('success', 'Task updated successfully.');
+        return redirect()->route('tasks.index')->with('success', 'Job updated successfully.');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     *
-     * @param  \App\Models\Task  $task
-     * @return \Illuminate\Http\Response
-     */
     public function destroy(Task $task)
     {
         $this->authorize('delete', $task);
         $task->delete();
 
-        return redirect()->route('tasks.index')->with('success', 'Task deleted successfully.');
+        return redirect()->route('tasks.index')->with('success', 'Job deleted successfully.');
     }
 }
