@@ -26,6 +26,7 @@
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" href="{{ route('users.index') }}">Users</a>
+                            <a class="nav-link" href="{{ route('tasks.index') }}">Tasks</a>
                         </li>
                         <li class="nav-item">
                             <form action="{{ route('logout') }}" method="POST">
@@ -40,6 +41,11 @@
     </nav>
 
     <div class="container">
+        @if (session('error'))
+            <div class="alert alert-danger">
+                {{ session('error') }}
+            </div>
+        @endif
         @yield('content')
     </div>
 

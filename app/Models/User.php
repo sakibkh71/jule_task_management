@@ -54,4 +54,11 @@ class User extends Authenticatable
 
         return 'https://ui-avatars.com/api/?name=' . urlencode($this->name) . '&color=7F9CF5&background=EBF4FF';
     }
+    /**
+     * Get the tasks for the user.
+     */
+    public function tasks()
+    {
+        return $this->hasMany(Task::class);
+    }
 }
