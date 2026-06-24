@@ -18,7 +18,10 @@ class TaskPolicy
      */
     public function viewAny(User $user)
     {
+        // Role permissions disabled — all authenticated users allowed.
         return true;
+
+        // return $user->id === $task->user_id;
     }
 
     /**
@@ -30,7 +33,10 @@ class TaskPolicy
      */
     public function view(User $user, Task $task)
     {
-        return $user->id === $task->user_id;
+        // Role permissions disabled — all authenticated users allowed.
+        return true;
+
+        // return $user->id === $task->user_id;
     }
 
     /**
@@ -41,6 +47,7 @@ class TaskPolicy
      */
     public function create(User $user)
     {
+        // Role permissions disabled — all authenticated users allowed.
         return true;
     }
 
@@ -53,7 +60,14 @@ class TaskPolicy
      */
     public function update(User $user, Task $task)
     {
-        return $user->id === $task->user_id;
+        // Role permissions disabled — all authenticated users allowed.
+        return true;
+
+        // if (in_array($user->role, ['Admin', 'Super Admin'], true)) {
+        //     return true;
+        // }
+        //
+        // return $user->id === $task->user_id || $user->id === $task->technician_id;
     }
 
     /**
@@ -65,6 +79,9 @@ class TaskPolicy
      */
     public function delete(User $user, Task $task)
     {
-        return $user->id === $task->user_id;
+        // Role permissions disabled — all authenticated users allowed.
+        return true;
+
+        // return $user->id === $task->user_id;
     }
 }

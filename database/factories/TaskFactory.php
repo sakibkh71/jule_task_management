@@ -26,7 +26,7 @@ class TaskFactory extends Factory
             'user_id' => User::factory(),
             'title' => $this->faker->sentence,
             'description' => $this->faker->paragraph,
-            'status' => $this->faker->randomElement(['pending', 'in_progress', 'completed']),
+            'status' => $this->faker->randomElement(['assigned', 'in_progress', 'completed']),
             'due_date' => $this->faker->date(),
         ];
     }

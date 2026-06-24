@@ -37,6 +37,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('users', UserController::class);
 
     Route::resource('tasks', TaskController::class);
+    Route::patch('/tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
+    Route::patch('/tasks/{task}/technician', [TaskController::class, 'assignTechnician'])->name('tasks.technician');
 
     Route::get('/profile/password', [ProfileController::class, 'showPasswordForm'])->name('profile.password');
     Route::put('/profile/password', [ProfileController::class, 'updatePassword'])->name('profile.password.update');

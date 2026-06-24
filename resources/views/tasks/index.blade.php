@@ -120,21 +120,76 @@
     .text-main  { font-weight: 600; color: #111827; }
     .text-sub   { font-size: 12px; color: #6b7280; margin-top: 2px; }
 
-    /* Status badges */
-    .badge-status {
+    .status-select {
         display: inline-block;
-        padding: 4px 10px;
-        border-radius: 5px;
+        min-width: 128px;
+        appearance: none;
+        -webkit-appearance: none;
+        border: none;
+        padding: 4px 26px 4px 10px;
+        border-radius: 6px;
         font-size: 11px;
         font-weight: 700;
-        letter-spacing: .05em;
+        letter-spacing: .04em;
         text-transform: uppercase;
         white-space: nowrap;
+        cursor: pointer;
+        color: #fff;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 16 16' fill='white'%3E%3Cpath d='M4.5 6L8 9.5 11.5 6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        transition: opacity 0.15s, background-color 0.15s;
     }
-    .badge-status-completed   { background: #2563eb; color: #fff; }
-    .badge-status-inprogress  { background: #1e3a5f; color: #fff; }
-    .badge-status-confirmed   { background: #16a34a; color: #fff; }
-    .badge-status-assigned    { background: #dc2626; color: #fff; }
+    .status-select:hover:not(:disabled) { opacity: 0.9; }
+    .status-select:disabled { opacity: 0.65; cursor: not-allowed; }
+    .status-select option { color: #111827; background: #fff; font-weight: 600; }
+
+    .technician-select {
+        display: inline-block;
+        min-width: 150px;
+        max-width: 180px;
+        appearance: none;
+        -webkit-appearance: none;
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        padding: 6px 28px 6px 10px;
+        font-size: 13px;
+        font-weight: 500;
+        color: #111827;
+        background-color: #fff;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 16 16' fill='%236b7280'%3E%3Cpath d='M4.5 6L8 9.5 11.5 6'/%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 8px center;
+        cursor: pointer;
+        transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .technician-select:hover:not(:disabled) { border-color: #d1d5db; }
+    .technician-select:focus {
+        outline: none;
+        border-color: #2563eb;
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+    .technician-select:disabled { opacity: 0.65; cursor: not-allowed; }
+    .technician-select option { color: #111827; font-weight: 500; }
+
+    .jobs-toast {
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        z-index: 2000;
+        background: #111827;
+        color: #fff;
+        padding: 12px 18px;
+        border-radius: 10px;
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+        opacity: 0;
+        transform: translateY(8px);
+        transition: opacity 0.25s, transform 0.25s;
+        pointer-events: none;
+    }
+    .jobs-toast.show { opacity: 1; transform: translateY(0); }
 
     /* Actions */
     .action-btn {
@@ -267,10 +322,11 @@
 
             <select name="job_status">
                 <option value="">Job Status (All)</option>
-                <option value="assigned"    {{ request('job_status') == 'assigned'    ? 'selected' : '' }}>Assigned</option>
-                <option value="in_progress" {{ request('job_status') == 'in_progress' ? 'selected' : '' }}>In Progress</option>
-                <option value="confirmed"   {{ request('job_status') == 'confirmed'   ? 'selected' : '' }}>Confirmed</option>
-                <option value="completed"   {{ request('job_status') == 'completed'   ? 'selected' : '' }}>Completed</option>
+                @foreach ($taskStatuses as $status)
+                    <option value="{{ $status->slug }}" {{ request('job_status') == $status->slug ? 'selected' : '' }}>
+                        {{ $status->label }}
+                    </option>
+                @endforeach
             </select>
 
             <button type="submit" class="btn-search">
@@ -331,12 +387,17 @@
 
                     {{-- TECHNICIAN --}}
                     <td>
-                        @if ($task->technician)
-                            <span class="text-main">{{ $task->technician->name }}</span>
-                            <div class="text-sub">{{ $task->technician->email }}</div>
-                        @else
-                            <span class="text-sub">Unassigned</span>
-                        @endif
+                        <select class="technician-select"
+                                data-task-id="{{ $task->id }}"
+                                data-update-url="{{ route('tasks.technician', $task) }}"
+                                data-prev-technician-id="{{ $task->technician_id ?? '' }}">
+                            <option value="" {{ !$task->technician_id ? 'selected' : '' }}>Unassigned</option>
+                            @foreach ($technicians as $tech)
+                                <option value="{{ $tech->id }}" {{ $task->technician_id == $tech->id ? 'selected' : '' }}>
+                                    {{ $tech->name }}
+                                </option>
+                            @endforeach
+                        </select>
                     </td>
 
                     {{-- CLIENT --}}
@@ -351,13 +412,13 @@
 
                     {{-- STATUS --}}
                     <td>
-                        <span class="badge-status {{ $task->status_badge_class }}">{{ $task->status_label }}</span>
+                        @include('tasks.partials.status-select', ['task' => $task, 'taskStatuses' => $taskStatuses])
                     </td>
 
                     {{-- ACTIONS --}}
                     <td>
                         <div style="display:flex;gap:4px;">
-                            <a href="{{ route('tasks.edit', $task) }}" class="action-btn" title="Edit">
+                            <a href="{{ route('tasks.edit', ['task' => $task, 'back' => route('tasks.index')]) }}" class="action-btn" title="Edit">
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                             </a>
                             <button type="button" class="action-btn danger" title="Delete"
@@ -418,4 +479,257 @@
     @endif
 
 </div>
+
+{{-- Status change confirmation --}}
+<div class="modal fade" id="statusConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border:none;border-radius:14px;overflow:hidden;">
+            <div class="modal-header" style="border-bottom:1px solid #f1f3f7;padding:18px 22px;">
+                <h5 class="modal-title" style="font-size:16px;font-weight:700;color:#111827;">
+                    <i class="bi bi-arrow-repeat me-2" style="color:#2563eb;"></i>Change Status
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding:22px;">
+                <p id="statusConfirmMessage" style="margin:0;font-size:14px;color:#374151;line-height:1.6;"></p>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #f1f3f7;padding:14px 22px;gap:8px;">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal" style="font-size:13px;">Cancel</button>
+                <button type="button" class="btn text-white" id="statusConfirmBtn"
+                        style="background:#2563eb;font-size:13px;font-weight:600;border:none;">
+                    Yes, Change Status
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{{-- Technician assignment confirmation --}}
+<div class="modal fade" id="technicianConfirmModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content" style="border:none;border-radius:14px;overflow:hidden;">
+            <div class="modal-header" style="border-bottom:1px solid #f1f3f7;padding:18px 22px;">
+                <h5 class="modal-title" style="font-size:16px;font-weight:700;color:#111827;">
+                    <i class="bi bi-person-check me-2" style="color:#2563eb;"></i>Assign Technician
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" style="padding:22px;">
+                <p id="technicianConfirmMessage" style="margin:0;font-size:14px;color:#374151;line-height:1.6;"></p>
+            </div>
+            <div class="modal-footer" style="border-top:1px solid #f1f3f7;padding:14px 22px;gap:8px;">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal" style="font-size:13px;">Cancel</button>
+                <button type="button" class="btn text-white" id="technicianConfirmBtn"
+                        style="background:#2563eb;font-size:13px;font-weight:600;border:none;">
+                    Yes, Assign Technician
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="jobsToast" class="jobs-toast" role="status" aria-live="polite"></div>
+
 @endsection
+
+@push('scripts')
+<script>
+(function () {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+    const toastEl = document.getElementById('jobsToast');
+    if (!csrfToken || !toastEl) return;
+
+    function showToast(message) {
+        toastEl.textContent = message;
+        toastEl.classList.add('show');
+        clearTimeout(showToast._timer);
+        showToast._timer = setTimeout(() => toastEl.classList.remove('show'), 2800);
+    }
+
+    /* ── Status change ───────────────────────────── */
+    const statusModalEl = document.getElementById('statusConfirmModal');
+    const statusMessageEl = document.getElementById('statusConfirmMessage');
+    const statusConfirmBtn = document.getElementById('statusConfirmBtn');
+    if (!statusModalEl) return;
+
+    const statusModal = new bootstrap.Modal(statusModalEl);
+
+    let pendingStatusSelect = null;
+    let previousStatus = null;
+    let newStatus = null;
+    let isSavingStatus = false;
+
+    function statusLabel(select, slug) {
+        const option = select.querySelector('option[value="' + slug + '"]');
+        return option ? option.dataset.label : slug;
+    }
+
+    function applyStatusColor(select, slug, fallbackColor) {
+        const option = select.querySelector('option[value="' + slug + '"]');
+        select.style.backgroundColor = fallbackColor || option?.dataset.color || '#6b7280';
+    }
+
+    function revertStatusSelect() {
+        if (!pendingStatusSelect || previousStatus === null) return;
+        pendingStatusSelect.value = previousStatus;
+        applyStatusColor(pendingStatusSelect, previousStatus);
+    }
+
+    document.querySelectorAll('.status-select').forEach(function (select) {
+        applyStatusColor(select, select.dataset.prevStatus);
+        select.addEventListener('change', function () {
+            const chosen = select.value;
+            const prev = select.dataset.prevStatus;
+
+            if (chosen === prev) return;
+
+            pendingStatusSelect = select;
+            previousStatus = prev;
+            newStatus = chosen;
+
+            statusMessageEl.innerHTML = 'Change status from <strong>' + statusLabel(select, prev) + '</strong> to <strong>' + statusLabel(select, chosen) + '</strong>?';
+            statusModal.show();
+        });
+    });
+
+    statusModalEl.addEventListener('hidden.bs.modal', function () {
+        if (!isSavingStatus) revertStatusSelect();
+        pendingStatusSelect = null;
+        previousStatus = null;
+        newStatus = null;
+        isSavingStatus = false;
+    });
+
+    statusConfirmBtn.addEventListener('click', function () {
+        if (!pendingStatusSelect || !newStatus) return;
+
+        isSavingStatus = true;
+        statusConfirmBtn.disabled = true;
+        pendingStatusSelect.disabled = true;
+
+        fetch(pendingStatusSelect.dataset.updateUrl, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ status: newStatus }),
+        })
+        .then(function (response) {
+            return response.json().then(function (data) {
+                if (!response.ok) throw data;
+                return data;
+            });
+        })
+        .then(function (data) {
+            pendingStatusSelect.dataset.prevStatus = data.status;
+            applyStatusColor(pendingStatusSelect, data.status, data.status_color);
+            showToast(data.message || 'Status updated.');
+            statusModal.hide();
+        })
+        .catch(function (error) {
+            isSavingStatus = false;
+            revertStatusSelect();
+            statusModal.hide();
+            const msg = error?.message || error?.errors?.status?.[0] || 'Could not update status.';
+            showToast(msg);
+        })
+        .finally(function () {
+            statusConfirmBtn.disabled = false;
+            if (pendingStatusSelect) pendingStatusSelect.disabled = false;
+        });
+    });
+
+    /* ── Technician assignment ───────────────────── */
+    const techModalEl = document.getElementById('technicianConfirmModal');
+    const techMessageEl = document.getElementById('technicianConfirmMessage');
+    const techConfirmBtn = document.getElementById('technicianConfirmBtn');
+    if (!techModalEl) return;
+
+    const techModal = new bootstrap.Modal(techModalEl);
+
+    let pendingTechSelect = null;
+    let previousTechnicianId = null;
+    let newTechnicianId = null;
+    let isSavingTechnician = false;
+
+    function technicianLabel(select, id) {
+        if (!id) return 'Unassigned';
+        const option = select.querySelector('option[value="' + id + '"]');
+        return option ? option.textContent.trim() : 'Unknown';
+    }
+
+    function revertTechnicianSelect() {
+        if (!pendingTechSelect) return;
+        pendingTechSelect.value = previousTechnicianId;
+    }
+
+    document.querySelectorAll('.technician-select').forEach(function (select) {
+        select.addEventListener('change', function () {
+            const chosen = select.value;
+            const prev = select.dataset.prevTechnicianId;
+
+            if (chosen === prev) return;
+
+            pendingTechSelect = select;
+            previousTechnicianId = prev;
+            newTechnicianId = chosen;
+
+            techMessageEl.innerHTML = 'Assign technician from <strong>' + technicianLabel(select, prev) + '</strong> to <strong>' + technicianLabel(select, chosen) + '</strong>?';
+            techModal.show();
+        });
+    });
+
+    techModalEl.addEventListener('hidden.bs.modal', function () {
+        if (!isSavingTechnician) revertTechnicianSelect();
+        pendingTechSelect = null;
+        previousTechnicianId = null;
+        newTechnicianId = null;
+        isSavingTechnician = false;
+    });
+
+    techConfirmBtn.addEventListener('click', function () {
+        if (!pendingTechSelect || newTechnicianId === null) return;
+
+        isSavingTechnician = true;
+        techConfirmBtn.disabled = true;
+        pendingTechSelect.disabled = true;
+
+        fetch(pendingTechSelect.dataset.updateUrl, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            body: JSON.stringify({ technician_id: newTechnicianId || null }),
+        })
+        .then(function (response) {
+            return response.json().then(function (data) {
+                if (!response.ok) throw data;
+                return data;
+            });
+        })
+        .then(function (data) {
+            pendingTechSelect.dataset.prevTechnicianId = data.technician_id ?? '';
+            showToast(data.message || 'Technician assigned.');
+            techModal.hide();
+        })
+        .catch(function (error) {
+            isSavingTechnician = false;
+            revertTechnicianSelect();
+            techModal.hide();
+            const msg = error?.message || error?.errors?.technician_id?.[0] || 'Could not assign technician.';
+            showToast(msg);
+        })
+        .finally(function () {
+            techConfirmBtn.disabled = false;
+            if (pendingTechSelect) pendingTechSelect.disabled = false;
+        });
+    });
+})();
+</script>
+@endpush

@@ -60,6 +60,11 @@ class Task extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    public function taskStatus()
+    {
+        return $this->belongsTo(TaskStatus::class, 'status', 'slug');
+    }
+
     public function getJobTypeLabelAttribute(): string
     {
         return match ($this->job_type) {
@@ -84,23 +89,18 @@ class Task extends Model
 
     public function getStatusLabelAttribute(): string
     {
-        return match ($this->status) {
-            'assigned'    => 'ASSIGNED',
-            'in_progress' => 'IN PROGRESS',
-            'confirmed'   => 'CONFIRMED',
-            'completed'   => 'COMPLETED',
-            default       => strtoupper($this->status),
-        };
+        return $this->taskStatus?->label
+            ?? strtoupper(str_replace('_', ' ', $this->status ?? ''));
     }
 
+    public function getStatusColorAttribute(): string
+    {
+        return $this->taskStatus?->color ?? '#6b7280';
+    }
+
+    /** @deprecated Use status_color inline style instead */
     public function getStatusBadgeClassAttribute(): string
     {
-        return match ($this->status) {
-            'assigned'    => 'badge-status-assigned',
-            'in_progress' => 'badge-status-inprogress',
-            'confirmed'   => 'badge-status-confirmed',
-            'completed'   => 'badge-status-completed',
-            default       => 'badge-status-assigned',
-        };
+        return 'badge-status-dynamic';
     }
 }
